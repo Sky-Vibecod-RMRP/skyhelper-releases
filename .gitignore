@@ -1,0 +1,22 @@
+# Кэши и артефакты сборки
+__pycache__/
+*.pyc
+.pytest_cache/
+build/
+dist/
+logs/
+
+# Данные и рабочие файлы (не код)
+*.db
+*.db-shm
+*.db-wal
+license.key
+*.pem
+.rmrp*
+
+# Отчёты — генерируемые данные
+Отчёты*/
+
+# Редакторы
+.vscode/
+.idea/
