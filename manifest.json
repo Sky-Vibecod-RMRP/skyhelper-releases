@@ -1,8 +1,8 @@
 {
-  "version": "1.0.5",
-  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.5/SKYHELPER_Setup.exe",
-  "sha256": "aff7a4b74292e945067b5b59235af195a8f263f931ce1bf2713273035c303d0f",
-  "released_at": 1790836442,
-  "notes": "Своя иконка SKY HELPER (монограмма SH) вместо логотипа Python",
-  "sig": "UCphAoq675x3YeGzeXgRq641pcNpmiB9xexGks2iaYcHlomaX4uxRfclD5Cr_zhetdcRjYlDETZ5chc-XHvQCg"
+  "version": "1.0.6",
+  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.6/SKYHELPER_Setup.exe",
+  "sha256": "2cb071b240611ddf752937f938604ad400a21af72f52fe6a725c8280244335c4",
+  "released_at": 1790837926,
+  "notes": "Установщик сам закрывает программу при установке; настоящая версия в мастере и свойствах",
+  "sig": "6zluMCHUxMpDtAq7Lc4cg2MUg4UJD0vUGOcbYpZidjL3p-C1ad4q25DgkFkrPI1RbpWkU4qfgP0gptkk4zCKBg"
 }
