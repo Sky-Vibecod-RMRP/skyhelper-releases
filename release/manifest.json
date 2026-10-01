@@ -1,8 +1,8 @@
 {
-  "version": "1.0.7",
-  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.7/SKYHELPER_Setup.exe",
-  "sha256": "3fc8790c9ecd89cc4009b4fe1a27bc8630af446a937344b3cb610ddbf045e04e",
-  "released_at": 1790846816,
-  "notes": "Что нового: везде только SKY HELPER — файл программы переименован в SKYHELPER.exe, папки данных и отчётов переезжают автоматически; иконка окна задаётся программно, панель задач больше не показывает иконку прошлой версии.",
-  "sig": "WF3wfc-bQ_9GMiwcR_VWMRf9_zt544PDnPYhalXwqLRuDInxhKU3NOZK-xTEQ_2HtgUiLFq2mJ3BoSktqQl0Dw"
+  "version": "1.0.8",
+  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.8/SKYHELPER_Setup.exe",
+  "sha256": "d86f3086d45260e3b82a54740c8fcfc9bee1a93f705cbe0e13a1959a47ac97f3",
+  "released_at": 1790872306,
+  "notes": "Что нового: вход без пароля (общий пароль убран), сайт sky-grafana.rmrp прописывается сам и получает ярлык на рабочий стол, exe собран без UPX (меньше ложных срабатываний антивирусов)",
+  "sig": "3S16JoNxeQ7GLvBogzfrxfP-R_2g5NkrKC0zHPrPMkRy0SoZMKjJEnVxs-6bm9WS4NmP9rDNZvyib-iywbnMAw"
 }
