@@ -1,8 +1,8 @@
 {
-  "version": "1.0.1",
-  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.1/SKYHELPER_Setup.exe",
-  "sha256": "6e81422565af257036dd0f7d7de5c8c5be0f748a5ebe44e75a79d776a48e9b34",
-  "released_at": 1790828323,
-  "notes": "Тест: проверка автообновления",
-  "sig": "FcCIDESTF9g8LC1BGjut3bucP_VUdQwJ561yPhbgGnoz_v_5oo9mnZzYCcVHIrnNPZVd7BBCcbdvgklmw64iCw"
+  "version": "1.0.2",
+  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.2/SKYHELPER_Setup.exe",
+  "sha256": "7823cbe43de076cba04681af751390c0226ab3253d0cc6f6f15656e8c123f40d",
+  "released_at": 1790832259,
+  "notes": "Фикс: окно cmd больше не мелькает при обновлении, исправлен падающий перезапуск",
+  "sig": "Ct4fb9TVqRwHfr4_FhDh-JzbgpBKQgEwOh2ge_Y6k_Oi958A2Jc1qVQBgmw90NMNlEJ6zluTmasaDjWfn1cKBw"
 }
