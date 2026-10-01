@@ -1,8 +1,8 @@
 {
-  "version": "1.0.6",
-  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.6/SKYHELPER_Setup.exe",
-  "sha256": "2cb071b240611ddf752937f938604ad400a21af72f52fe6a725c8280244335c4",
-  "released_at": 1790837926,
-  "notes": "Установщик сам закрывает программу при установке; настоящая версия в мастере и свойствах",
-  "sig": "6zluMCHUxMpDtAq7Lc4cg2MUg4UJD0vUGOcbYpZidjL3p-C1ad4q25DgkFkrPI1RbpWkU4qfgP0gptkk4zCKBg"
+  "version": "1.0.7",
+  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.7/SKYHELPER_Setup.exe",
+  "sha256": "3fc8790c9ecd89cc4009b4fe1a27bc8630af446a937344b3cb610ddbf045e04e",
+  "released_at": 1790846816,
+  "notes": "Что нового: везде только SKY HELPER — файл программы переименован в SKYHELPER.exe, папки данных и отчётов переезжают автоматически; иконка окна задаётся программно, панель задач больше не показывает иконку прошлой версии.",
+  "sig": "WF3wfc-bQ_9GMiwcR_VWMRf9_zt544PDnPYhalXwqLRuDInxhKU3NOZK-xTEQ_2HtgUiLFq2mJ3BoSktqQl0Dw"
 }
