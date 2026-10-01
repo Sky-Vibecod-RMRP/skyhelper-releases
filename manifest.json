@@ -1,8 +1,8 @@
 {
-  "version": "1.0.9",
-  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.9/SKYHELPER_Setup.exe",
-  "sha256": "cd6b8f77e323de29c6c58381c785330984f28023ca004a9eec0d6c0a777a1039",
-  "released_at": 1790896028,
-  "notes": "Исправлены лаг Shift/Ctrl, самопроизвольное выключение дежурства и крах свечения панели",
-  "sig": "w8ivSku8W0FIVxlL4m56gVjUeUD1FF2NPOplcq_uwNSVgzReoChn5JR8WBO7RbO--PjSWoRq1inQm1TRBhbhCg"
+  "version": "1.0.10",
+  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.10/SKYHELPER_Setup.exe",
+  "sha256": "b9a40054eecc9e38437ceac937b8dc765044ba4f99dce5d16e17506e428e0eb6",
+  "released_at": 1790898406,
+  "notes": "Горячие клавиши: поле захвата нажатия вместо текстового строки, проверка бинда до сохранения, слушатель не падает на битом конфиге",
+  "sig": "50lntntPhH6lV5TBx8B8xmyoqeFfgwA5mLl2qFfb01WnOnHPEEsxJBMp-WKFxT6QEOMih6LAfXD75S3AgyBMBg"
 }
