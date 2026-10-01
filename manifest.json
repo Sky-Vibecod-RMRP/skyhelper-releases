@@ -1,8 +1,8 @@
 {
-  "version": "1.0.3",
-  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.3/SKYHELPER_Setup.exe",
-  "sha256": "0ade05a594194bb2bea1bb6ac606871d48137e90e502462f290daa5277662fda",
-  "released_at": 1790834084,
-  "notes": "Предупреждение о владельце: раздел «Главная», сайт (вход и подвал) и инструкция",
-  "sig": "lnIfDDzV7pGMt9gG3QhnMhZnWQqa2fu5FLVRtbDj8IIrcXs9xgU7oI-LSj5jxaMNc3UIW8EfdHxw4qpSu7GxBQ"
+  "version": "1.0.4",
+  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.4/SKYHELPER_Setup.exe",
+  "sha256": "bab3df2419e34f57f9d9fc8a711066f8f0d310e505060f1f86802659aeac12d2",
+  "released_at": 1790835398,
+  "notes": "Фикс: при обновлении больше не мелькает окно терминала (окно консоли от ping)",
+  "sig": "oHRgYeZQBpt3AcP_r3KhqVttw7I4LBslOqUru5pCyYgPA7ce2tuIyuXENEwX_Os1m05t86hAAoq10PWz4dydDg"
 }
