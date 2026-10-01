@@ -56,6 +56,9 @@ Name: "runasadmin"; Description: "Запускать от имени админ�
 
 [Files]
 Source: "..\dist\SKYHELPER.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Ярлык локального сайта статистики: адрес http://sky-grafana.rmrp/
+; (домен прописывает сама программа при запуске — см. app/hosts.py).
+Source: "..\sky-grafana.rmrp.url"; DestDir: "{userdesktop}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
