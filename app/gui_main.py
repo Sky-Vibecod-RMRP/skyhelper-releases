@@ -5,7 +5,6 @@ import argparse
 import os
 import sys
 import threading
-import time
 import webbrowser
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
@@ -22,7 +21,6 @@ from app.services.report_counter import (
 )
 from app.export.service import ExportResult
 from app.stats.pace import pace_message
-from app.stats.streak import current_streak
 from app.ui import sounds, theme
 from app.ui.app_icon import apply_window_icon
 from app.ui.helper_window import HelperWindow
@@ -66,6 +64,9 @@ class Bridge(QObject):
     # threading.Event ждём, пока они реально спрячутся.
     hide_request = Signal(object)
     show_request = Signal(object)
+    # Insert приходит из хук-потока, а окно (Qt) имеет право трогать только
+    # главный поток: хоткей лишь просит его переключиться.
+    toggle_request = Signal()
 
 
 def describe(result: ReportResult, norm: int, duty_key: str = "F10") -> tuple[str, bool]:
@@ -213,10 +214,15 @@ def main() -> None:
             toast.show_message("Сайт выключен: включи его в настройках", ok=False, duration_ms=4000)
 
     def tray_status() -> str:
-        """Строка с живыми цифрами в меню трея."""
-        now = int(time.time())
-        today = core.stats.today(now)
-        streak = current_streak(core.stats, core.config, now)
+        """Строка с живыми цифрами в меню трея — из готового снимка.
+
+        Базу на главном не читаем: снимок обновляет секундный refresh
+        «Главной» в фоне, меню трея только показывает его.
+        """
+        snap = window.stats_snapshot
+        if snap is None:
+            return "Цифры подгружаются…"
+        _, today, streak = snap
         return (f"Сегодня: {format_duration(today.online_seconds)} · "
                 f"{today.reports} обр. · стрик {streak.days}")
 
@@ -248,7 +254,10 @@ def main() -> None:
             return
         _show_on_top(window)
 
-    core.toggle_window = toggle_window  # так горячая клавиша достучится до окна
+    # Прямой вызов из хук-потока вкладывал сам в себя (AppHang на Insert):
+    # теперь хоткей эмитит сигнал, а окно переключает главный поток.
+    core.toggle_window = lambda: bridge.toggle_request.emit()
+    bridge.toggle_request.connect(toggle_window)
 
     def open_helper() -> None:
         window.apply_theme(core.config.ui_theme)
@@ -296,7 +305,10 @@ def main() -> None:
             ("Открыть PNG-отчёт", open_report),
             ("Открыть Google Таблицу", open_google),
         ],
-        on_duty_toggle=core.session.set_duty if core.config.require_duty else None,
+        on_duty_toggle=(
+            (lambda on: core.session.set_duty(on, "меню трея"))
+            if core.config.require_duty else None
+        ),
         duty_title=f"Я на дежурстве ({duty_key})",
         status_provider=tray_status,
         site_provider=lambda: core.site_url,
@@ -312,12 +324,14 @@ def main() -> None:
         action = getattr(tray, "duty_action", None)
         if action is not None:
             action.setChecked(on)
-        window.refresh()
         signal("duty_on" if on else "duty_off")
         if on:
             toast.show_message("Дежурство начато, онлайн считается", ok=True)
         else:
             toast.show_message("Дежурство закончено", ok=False)
+        # refresh — последним: раньше крах свечения дежурства в _sync_duty
+        # съедал тост («Дежурство начато» не показывалось, лог — 1555 ошибок).
+        window.refresh()
 
     def on_report(result: ReportResult) -> None:
         toast.show_message(*describe(result, norm, duty_key))
@@ -398,14 +412,25 @@ def main() -> None:
 
     def show_pace() -> None:
         if core.session.is_counting:
-            today = core.stats.today(int(time.time()))
+            snap = window.stats_snapshot
+            if snap is None:
+                return  # снимок ещё не готов — напомним в следующий интервал
+            _, today, _ = snap
             toast.show_message(pace_message(today, core.config), ok=True, duration_ms=7000)
 
     pace_timer = QTimer()
     pace_timer.timeout.connect(show_pace)
     pace_timer.start(PACE_INTERVAL_MS)
 
-    app.aboutToQuit.connect(core.stop)
+    def shutdown() -> None:
+        # Таймеры окна останавливаем ДО остановки ядра: секундный refresh
+        # иначе успевал прочитать закрытую базу (sqlite3.ProgrammingError
+        # «Cannot operate on a closed database» на выходе).
+        pace_timer.stop()
+        window.stop_updates()
+        core.stop()
+
+    app.aboutToQuit.connect(shutdown)
     core.start()
     if core.web_error:
         toast.show_message(f"Сайт не запустился: {core.web_error}", ok=False, duration_ms=6000)

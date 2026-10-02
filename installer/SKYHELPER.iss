@@ -20,7 +20,7 @@
 ; Записи секций должны быть ОДНОСТРОЧНЫМИ — Inno не умеет продолжения строки.
 ; ============================================================================
 #define MyAppName "SKY HELPER"
-#define MyAppVersion "1.0.8"
+#define MyAppVersion "1.0.11"
 #define MyAppPublisher "RMRP Staff"
 #define MyAppExeName "SKYHELPER.exe"
 #define MyAppOldExeName "RMRPAdminTracker.exe"

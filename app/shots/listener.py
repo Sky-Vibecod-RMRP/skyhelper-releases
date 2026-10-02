@@ -1,10 +1,14 @@
 """Глобальные клавиши категорий скриншотов.
 
 По образцу ``app.hotkeys.listener``: одна категория — один хоткей,
-``suppress=False`` (клавиша не съедается, игра её тоже видит), дебаунс
-0,3 с, чтобы зажатая клавиша не выдала серию снимков. Список категорий
-меняется в настройках — значит, слушатель должен уметь перепривязываться
-на лету через :meth:`CategoryListener.reload`.
+``suppress=False`` (клавиша не съедается, игра её тоже видит), edge-гард
+против автоповтора зажатой клавиши, тайм-дебаунс 0,3 с — второй эшелон.
+Сам снимок уходит в отдельный поток: конвейер (прятание окон, захват,
+ждём 1 с, JPEG) раньше выполнялся прямо в processing-потоке ``keyboard``
+и на 1–2 с блокировал обработку остальных нажатий — сотрудник жаловался
+на лаг Shift/Ctrl. Список категорий меняется в настройках — значит,
+слушатель должен уметь перепривязываться на лету через
+:meth:`CategoryListener.reload`.
 """
 from __future__ import annotations
 
@@ -13,6 +17,7 @@ import threading
 import time
 from typing import Callable, Iterable
 
+from app.hotkeys.edge import EdgeGuard
 from app.shots.names import sanitize
 
 log = logging.getLogger(__name__)
@@ -115,6 +120,8 @@ class CategoryListener:
         self._handles: list = []
         self._keys: dict[str, float] = {}   # клавиша → время последного нажатия
         self._lock = threading.Lock()
+        self._edge = EdgeGuard()
+        self._thread: threading.Thread | None = None
 
     # --- публичное -------------------------------------------------------
 
@@ -146,6 +153,7 @@ class CategoryListener:
 
     def stop(self) -> None:
         """Снимает все привязки (нужно до перезапуска слушателя)."""
+        self._edge.unwatch()
         if not self._handles:
             return
         try:
@@ -162,12 +170,24 @@ class CategoryListener:
         with self._lock:
             self._keys.clear()
 
+    def join(self, timeout: float = 2.0) -> None:
+        """Дождаться текущего снимка (для тестов и корректной остановки)."""
+        with self._lock:
+            thread = self._thread
+        if thread is not None:
+            thread.join(timeout)
+
     # --- внутреннее ------------------------------------------------------
 
     def _add(self, key: str, name: str):
         import keyboard
 
         def _fire() -> None:
+            # Сначала edge: автоповтор зажатой клавиши не должен даже
+            # доходить до дебаунса — иначе удержание давало бы серию
+            # снимков раз в 0,3 с.
+            if not self._edge.allow(key):
+                return
             # Таймстемп под замком: две нажатые подряд клавиши приходят из
             # разных потоков listener'а и не должны прочитать одно и то же.
             with self._lock:
@@ -176,10 +196,27 @@ class CategoryListener:
                 if last is not None and now - last < DEBOUNCE_SEC:
                     return
                 self._keys[key] = now
-            try:
-                self._on_shot(name)
-            except Exception:
-                log.exception("Скриншот по %s не удался", key)
+                # Снимок — в отдельный поток: конвейер (прятание окон, захват,
+                # пауза 1 с, JPEG) выполнялся прямо в processing-потоке
+                # keyboard и на 1–2 с блокировал обработку остальных нажатий.
+                # Не очередь: второй поток сразу получит «Предыдущий скриншот
+                # ещё снимается» от _busy в ShotsService.shoot.
+                thread = threading.Thread(
+                    target=self._run_shot, args=(key, name),
+                    name=f"Shot-{key}", daemon=True,
+                )
+                self._thread = thread
+                thread.start()
 
         # suppress=False: игра тоже видит нажатие, мы его лишь подмечаем.
-        return keyboard.add_hotkey(key, _fire, suppress=False)
+        handle = keyboard.add_hotkey(key, _fire, suppress=False)
+        # Edge-хуки против автоповтора: при сбое регистрации колбэк выше
+        # просто продолжает работать с тайм-дебаунсом (как раньше).
+        self._edge.watch(key)
+        return handle
+
+    def _run_shot(self, key: str, name: str) -> None:
+        try:
+            self._on_shot(name)
+        except Exception:
+            log.exception("Скриншот по %s не удался", key)

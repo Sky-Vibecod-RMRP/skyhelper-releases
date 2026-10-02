@@ -22,6 +22,12 @@ def find_running(process_names: Iterable[str]) -> bool:
 
 
 class GameWatcher(threading.Thread):
+    #: Сколько проверок подряд можно не увидеть игру, прежде чем поверить,
+    #: что её действительно закрыли. Одиночный сбой опроса (psutil иногда
+    #: не отдаёт процесс) раньше выключал дежурство сам по себе — сотрудник
+    #: жаловался: «дежурство само периодически выключается».
+    MISSES_BEFORE_GONE = 2
+
     def __init__(
         self,
         session: SessionService,
@@ -35,15 +41,49 @@ class GameWatcher(threading.Thread):
         self._interval = poll_interval
         self._detector = detector
         self._stop_event = threading.Event()
+        self._misses = 0
+        self._game_seen = False
 
     def run(self) -> None:
+        # Листинг при старте: в логе видно, какие процессы реально загружены
+        # из config.json (на случай, если игра «не находится» из-за списка).
+        log.info("Отслеживаю процессы: %s", ", ".join(self._names))
         while True:
             try:
-                self._session.tick(self._detector(self._names))
+                self._poll()
             except Exception:
                 log.exception("Ошибка при проверке процесса игры")
             if self._stop_event.wait(self._interval):
                 break
+
+    def _poll(self) -> None:
+        if self._detector(self._names):
+            if self._misses:
+                log.info("Процесс игры снова найден")
+            self._misses = 0
+            self._game_seen = True
+            self._session.tick(True)
+            return
+        self._misses += 1
+        if not self._game_seen:
+            # Игру ещё ни разу не видели — обычное «нет игры» с первой же
+            # проверки (задержка не нужна, менять нечего).
+            self._session.tick(False)
+            return
+        if self._misses < self.MISSES_BEFORE_GONE:
+            # Ещё не уверены: держим прежнее состояние, tick не вызываем —
+            # одиночный сбой опроса не должен выключать дежурство.
+            log.warning(
+                "Процесс игры пропал (проверка %d из %d) — жду подтверждения",
+                self._misses, self.MISSES_BEFORE_GONE,
+            )
+            return
+        if self._misses == self.MISSES_BEFORE_GONE:
+            log.warning(
+                "Процесс игры не найден %d раза подряд — считаю игру закрытой",
+                self._misses,
+            )
+        self._session.tick(False)
 
     def stop(self) -> None:
         self._stop_event.set()

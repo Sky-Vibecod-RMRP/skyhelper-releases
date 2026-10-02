@@ -13,10 +13,12 @@ import pytest
 
 pytest.importorskip("PySide6")
 
+from PySide6.QtCore import QEvent, Qt  # noqa: E402
+from PySide6.QtGui import QKeyEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402
 
 from app.config import Config  # noqa: E402
-from app.ui.settings_dialog import SettingsDialog  # noqa: E402
+from app.ui.settings_dialog import HotkeyEdit, SettingsDialog  # noqa: E402
 
 
 class FakeCore:
@@ -120,3 +122,43 @@ def test_unknown_theme_in_config_does_not_crash(qapp):
     dialog = SettingsDialog(core)
     assert dialog._ui_theme.currentData() in ("dark", "midnight", "light")
     assert dialog._sound_theme.currentData() in ("off", "system", "soft")
+
+
+def test_hotkey_fields_capture_presses_instead_of_typing(qapp, core):
+    """Поля биндов — захват нажатия: набрать «zcsda» текстом невозможно.
+
+    Жалоба 02.10.2026: на вкладке стояло обычное текстовое поле.
+    """
+    dialog = SettingsDialog(core)
+    for edit in (dialog._key_add, dialog._key_remove,
+                 dialog._key_duty, dialog._key_toggle):
+        assert isinstance(edit, HotkeyEdit)
+
+    dialog._key_duty.keyPressEvent(
+        QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Z,
+                  Qt.KeyboardModifier.NoModifier, "z")
+    )
+    assert dialog._key_duty.text() == "z"
+    dialog._key_duty.keyPressEvent(
+        QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_C,
+                  Qt.KeyboardModifier.NoModifier, "c")
+    )
+    assert dialog._key_duty.text() == "c", "нажатие заменяет, а не дописывает"
+
+
+def test_unrecognized_hotkey_blocks_saving_and_keeps_config_clean(
+        qapp, core, monkeypatch):
+    """Битый бинд ловится ДО записи в config и до падения apply_config."""
+    pytest.importorskip("keyboard")   # без библиотеки проверить нечем
+    warnings: list[str] = []
+    monkeypatch.setattr(QMessageBox, "warning",
+                        lambda *args, **kwargs: warnings.append(str(args[2])))
+    dialog = SettingsDialog(core)
+    dialog._key_duty.setText("zcsda")
+
+    dialog.accept()
+
+    assert core.apply_calls == 0, "сохраняться с битым биндом не должно"
+    assert warnings and "дежурства" in warnings[0]
+    assert core.config.hotkey_duty == "f10", \
+        "битое значение не должно попасть в config"

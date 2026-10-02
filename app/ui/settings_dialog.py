@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 
 from app.config import CURSOR_STYLES
 from app.core import Core
+from app.hotkeys.listener import bind_problem
 from app.paths import default_google_key_path, default_output_dir, program_dir
 from app.shots.listener import category_problems
 from app.ui import sounds, theme
@@ -92,6 +93,25 @@ class HotkeyEdit(QLineEdit):
         return ""
 
 
+def _hotkey_field(value: str, placeholder: str = "нажми клавишу") -> HotkeyEdit:
+    """Поле бинда в «Дежурство, клавиши и нормы»: только нажатие клавиши.
+
+    Раньше здесь стояло обычное текстовое поле (жалоба 02.10.2026): в него
+    набирали «zcsda»/«numpad0», и сохранение падало в keyboard.add_hotkey.
+    """
+    edit = HotkeyEdit()
+    edit.setMinimumWidth(260)
+    edit.setText(value)
+    edit.setPlaceholderText(placeholder)
+    # Контекстное меню отключено: вставить текст мышью нельзя,
+    # бинд получается только настоящим нажатием клавиши.
+    edit.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+    edit.setToolTip(
+        "Нажми на поле, а затем на нужную клавишу. Backspace — очистить."
+    )
+    return edit
+
+
 class SettingsDialog(FramelessMixin, QDialog):
     """Читает текущие значения из core.config, при сохранении пишет их обратно."""
 
@@ -164,16 +184,13 @@ class SettingsDialog(FramelessMixin, QDialog):
         self._count_in_game = QCheckBox("Засчитывать нажатия только при запущенной игре")
         self._count_in_game.setChecked(cfg.count_only_in_game)
 
-        self._key_add = _field()
-        self._key_add.setText(cfg.hotkey_add)
-        self._key_remove = _field()
-        self._key_remove.setText(cfg.hotkey_remove)
-        self._key_duty = _field()
-        self._key_duty.setText(cfg.hotkey_duty)
+        self._key_add = _hotkey_field(cfg.hotkey_add)
+        self._key_remove = _hotkey_field(cfg.hotkey_remove)
+        self._key_duty = _hotkey_field(cfg.hotkey_duty)
         # Пусто = клавиша показа окна выключена.
-        self._key_toggle = _field()
-        self._key_toggle.setText(cfg.hotkey_toggle)
-        self._key_toggle.setPlaceholderText("напр. insert (пусто = выключить)")
+        self._key_toggle = _hotkey_field(
+            cfg.hotkey_toggle, "напр. insert (пусто = выключить)"
+        )
 
         self._on_top = QCheckBox("Держать окно поверх игры (поверх других окон)")
         self._on_top.setChecked(cfg.window_on_top)
@@ -764,22 +781,60 @@ class SettingsDialog(FramelessMixin, QDialog):
         cfg = self._core.config
         errors: list[str] = []
 
+        # Сначала читаем и проверяем клавиши, потом пишем в cfg: битое
+        # значение не должно успеть попасть в config.json (жалоба
+        # 02.10.2026: «zcsda» из текстового поля отравляло конфиг ещё до
+        # падения apply_config — и тогда бинды умирали при каждом запуске).
+        hotkeys = (
+            ("hotkey_add", "клавиша +1 обращения", self._key_add, True),
+            ("hotkey_remove", "клавиша −1 обращения", self._key_remove, True),
+            ("hotkey_duty", "клавиша дежурства", self._key_duty, True),
+            ("hotkey_toggle", "клавиша показа окна", self._key_toggle, False),
+        )
+        new_keys = {
+            attr: edit.text().strip().lower()
+            for attr, _title, edit, _required in hotkeys
+        }
+        categories = [
+            {
+                "name": row["name"].text().strip(),
+                "hotkey": row["hotkey"].text().strip().lower(),
+                "in_game": row["in_game"].isChecked(),
+            }
+            for row in self._shot_rows
+        ]
         if validate:
-            for title, edit in (
-                ("клавиша +1 обращения", self._key_add),
-                ("клавиша −1 обращения", self._key_remove),
-                ("клавиша дежурства", self._key_duty),
-            ):
-                if not edit.text().strip():
+            for attr, title, _edit, required in hotkeys:
+                value = new_keys[attr]
+                if required and not value:
                     errors.append(f"Не заполнена {title}")
+                elif value and bind_problem(value):
+                    errors.append(
+                        f"Не распознана {title}: «{value}» — нажми клавишу "
+                        f"в поле (Backspace — очистить)"
+                    )
+            # Резерв берём из полей этого же окна: их могли поменять прямо
+            # сейчас, а не только в прошлый раз — иначе проверка врёт.
+            reserved = [
+                self._key_add.text(), self._key_remove.text(),
+                self._key_duty.text(), self._key_toggle.text(),
+            ]
+            errors.extend(category_problems(cfg, categories, reserved))
 
+        if errors and validate:
+            from PySide6.QtWidgets import QMessageBox
+
+            QMessageBox.warning(self, "Проверь настройки", "\n".join(errors))
+            return False
+
+        # Все проверки прошли — записываем значения в config.
         cfg.require_duty = self._require_duty.isChecked()
         cfg.duty_auto_off_on_game_close = self._auto_off.isChecked()
         cfg.count_only_in_game = self._count_in_game.isChecked()
-        cfg.hotkey_add = self._key_add.text().strip().lower()
-        cfg.hotkey_remove = self._key_remove.text().strip().lower()
-        cfg.hotkey_duty = self._key_duty.text().strip().lower()
-        cfg.hotkey_toggle = self._key_toggle.text().strip().lower()
+        cfg.hotkey_add = new_keys["hotkey_add"]
+        cfg.hotkey_remove = new_keys["hotkey_remove"]
+        cfg.hotkey_duty = new_keys["hotkey_duty"]
+        cfg.hotkey_toggle = new_keys["hotkey_toggle"]
         cfg.window_on_top = self._on_top.isChecked()
         cfg.weekly_hours_norm = float(self._hours_norm.value())
         cfg.weekly_reports_norm = int(self._reports_norm.value())
@@ -815,33 +870,24 @@ class SettingsDialog(FramelessMixin, QDialog):
         cfg.shots_root = self._shots_root.text().strip()
         cfg.shots_allow_no_duty = self._shots_no_duty.isChecked()
         cfg.shots_sound = self._shots_sound.isChecked()
-        categories = [
-            {
-                "name": row["name"].text().strip(),
-                "hotkey": row["hotkey"].text().strip().lower(),
-                "in_game": row["in_game"].isChecked(),
-            }
-            for row in self._shot_rows
-        ]
-        if validate:
-            # Резерв берём из полей этого же окна: их могли поменять прямо
-            # сейчас, а не только в прошлый раз — иначе проверка врёт.
-            reserved = [
-                self._key_add.text(), self._key_remove.text(),
-                self._key_duty.text(), self._key_toggle.text(),
-            ]
-            errors.extend(category_problems(cfg, categories, reserved))
         cfg.shots_categories = categories
-
-        if errors and validate:
-            from PySide6.QtWidgets import QMessageBox
-
-            QMessageBox.warning(self, "Проверь настройки", "\n".join(errors))
-            return False
         return True
 
     def accept(self) -> None:  # noqa: N802 (имя задано Qt)
         if not self._collect():
             return
-        self._core.apply_config()
+        try:
+            self._core.apply_config()
+        except Exception as exc:  # noqa: BLE001 — окно не должно умирать молча
+            # Жалоба 02.10.2026: «после ввода клавиши не работает
+            # сохранение» — apply_config падал, окно висело без объяснений.
+            from PySide6.QtWidgets import QMessageBox
+
+            QMessageBox.warning(
+                self,
+                "Не удалось применить",
+                f"Сохранение сорвалось: {exc}\n"
+                r"Подробности — в журнале logs\app.log.",
+            )
+            return
         self.done(QDialog.DialogCode.Accepted)

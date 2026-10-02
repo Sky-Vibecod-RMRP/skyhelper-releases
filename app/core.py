@@ -74,10 +74,17 @@ class Core:
         return ExportScheduler(self.exporter.run, self.config.export_interval_min * 60)
 
     def _make_hotkeys(self) -> HotkeyListener:
+        duty_key = self.config.hotkey_duty
+
+        def toggle_duty() -> object:
+            # Причина с именем клавиши — в логе видно, что дежурство
+            # выключено хоткеем, а не авто-выключением по закрытию игры.
+            return self.session.toggle_duty(f"клавиша {str(duty_key).upper()}")
+
         return HotkeyListener(
             self.config.hotkey_add, self.config.hotkey_remove,
             self.counter.add, self.counter.undo,
-            self.config.hotkey_duty, self.session.toggle_duty,
+            duty_key, toggle_duty,
             self.config.hotkey_toggle or None,
             self.on_toggle_window,
         )

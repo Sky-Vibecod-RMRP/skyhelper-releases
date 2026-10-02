@@ -89,6 +89,9 @@ class SessionService:
             if game_closed and self._on_duty and self._config.duty_auto_off_on_game_close:
                 self._on_duty = False
                 duty_off = True
+                # Причина в логе: по жалобе сотрудник дежурство «само
+                # периодически выключалось», а строки с причиной не было.
+                log.info("Дежурство выключено (авто: игра закрылась)")
 
             result = self._reconcile(now)
             if result is not None:
@@ -103,8 +106,13 @@ class SessionService:
         if duty_off and self.on_duty_change:
             self.on_duty_change(False)
 
-    def set_duty(self, on: bool) -> None:
-        """Включить/выключить дежурство. Онлайн начинает или прекращает считаться сразу."""
+    def set_duty(self, on: bool, reason: str = "") -> None:
+        """Включить/выключить дежурство. Онлайн начинает или прекращает считаться сразу.
+
+        ``reason`` — откуда пришло переключение («клавиша F10», «кнопка в меню»,
+        «авто: игра закрылась»): причина пишется в лог, чтобы при следующей
+        жалобе было видно, кто выключил дежурство.
+        """
         now = int(self._clock())
         with self._lock:
             if on == self._on_duty:
@@ -112,13 +120,18 @@ class SessionService:
             self._on_duty = on
             result = self._reconcile(now)
             counting_now = self._session_id is not None
+        log.info(
+            "Дежурство %s%s",
+            "включено" if on else "выключено",
+            f" ({reason})" if reason else "",
+        )
         if result is not None and self.on_state_change:
             self.on_state_change(counting_now)
         if self.on_duty_change:
             self.on_duty_change(on)
 
-    def toggle_duty(self) -> bool:
-        self.set_duty(not self._on_duty)
+    def toggle_duty(self, reason: str = "") -> bool:
+        self.set_duty(not self._on_duty, reason)
         return self._on_duty
 
     def shutdown(self) -> None:

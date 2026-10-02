@@ -6,9 +6,12 @@
 """
 from __future__ import annotations
 
+import logging
+import threading
 import time
 from typing import Callable, Sequence
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget,
 )
@@ -19,6 +22,8 @@ from app.export.service import ExportResult
 from app.stats.streak import current_streak
 from app.ui import theme
 from app.util import format_duration
+
+log = logging.getLogger(__name__)
 
 BAR_SCALE = 1000
 
@@ -78,6 +83,10 @@ class ProgressCard(QFrame):
 class DashboardPanel(QWidget):
     """Содержимое раздела «Главная»: статистика, стрик, действия."""
 
+    # Готовые цифры приходят из фонового потока: главный поток никогда не
+    # читает базу — иначе окно могло зависнуть целиком (AppHang).
+    stats_ready = Signal(object)
+
     def __init__(
         self,
         core: Core,
@@ -86,6 +95,10 @@ class DashboardPanel(QWidget):
     ) -> None:
         super().__init__(parent)
         self._core = core
+        self._stats_snapshot: tuple | None = None
+        self._stats_pending = False
+        self._stats_stopped = False
+        self.stats_ready.connect(self._apply_stats)
 
         self._game = QLabel()
         self._game.setObjectName("caption")
@@ -135,12 +148,45 @@ class DashboardPanel(QWidget):
     # --- обновление --------------------------------------------------------
 
     def refresh(self) -> None:
-        cfg = self._core.config
-        now = int(time.time())
-        progress = self._core.stats.week_progress(now)
-        today = self._core.stats.today(now)
+        """Секундный тик: живые флаги сразу, цифры — запросом в фон.
 
-        self._game.setText(self._status_text(cfg.require_duty))
+        Главный поток здесь НЕ читает базу: секундный refresh мог
+        застрять в SQLite (AppHang — окно «не отвечало», процесс падал).
+        """
+        self._game.setText(self._status_text(self._core.config.require_duty))
+        if self._stats_stopped or self._stats_pending:
+            return
+        self._stats_pending = True
+        threading.Thread(
+            target=self._compute_stats, name="stats", daemon=True
+        ).start()
+
+    def _compute_stats(self) -> None:
+        """Фоновый расчёт: ошибка здесь не должна уронить интерфейс."""
+        payload = None
+        try:
+            now = int(time.time())
+            progress = self._core.stats.week_progress(now)
+            today = self._core.stats.today(now)
+            streak = current_streak(self._core.stats, self._core.config, now)
+            payload = (progress, today, streak)
+        except Exception:
+            if not self._stats_stopped:
+                log.exception("Фоновый расчёт статистики не удался")
+        finally:
+            self._stats_pending = False
+        if payload is None:
+            return
+        try:
+            self.stats_ready.emit(payload)
+        except RuntimeError:
+            pass  # окно уже уничтожено (выход из приложения)
+
+    def _apply_stats(self, payload) -> None:
+        """Снимок из фона — обновляем цифры (главный поток)."""
+        progress, today, streak = payload
+        cfg = self._core.config
+        self._stats_snapshot = payload
         self._hours.update_values(
             f"{format_duration(progress.stats.online_seconds)}  из {cfg.weekly_hours_norm:g} ч",
             progress.hours_percent,
@@ -149,11 +195,20 @@ class DashboardPanel(QWidget):
             f"{progress.stats.reports}  из {cfg.weekly_reports_norm}",
             progress.reports_percent,
         )
-        self._set_streak(current_streak(self._core.stats, cfg, now))
+        self._set_streak(streak)
         self._today.setText(
             f"Сегодня: {format_duration(today.online_seconds)}, обращений {today.reports}   |   "
             f"{cfg.hotkey_add.upper()} = +1, {cfg.hotkey_remove.upper()} = -1"
         )
+
+    @property
+    def stats_snapshot(self) -> tuple | None:
+        """Последний готовый снимок — для трея и темпа без чтения базы."""
+        return self._stats_snapshot
+
+    def stop_stats(self) -> None:
+        """Больше не запускать расчёты (выход из приложения)."""
+        self._stats_stopped = True
 
     def _set_streak(self, streak) -> None:
         if streak.plan_hours > 0 or streak.plan_reports > 0:

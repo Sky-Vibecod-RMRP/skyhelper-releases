@@ -85,9 +85,13 @@ def main() -> None:
     counter.on_result = lambda r: print(describe(r, config.weekly_reports_norm))
 
     watcher = GameWatcher(session, config.game_processes, config.poll_interval_sec)
+
+    def toggle_duty() -> object:
+        return session.toggle_duty(f"клавиша {str(config.hotkey_duty).upper()}")
+
     hotkeys = HotkeyListener(
         config.hotkey_add, config.hotkey_remove, counter.add, counter.undo,
-        config.hotkey_duty, session.toggle_duty,
+        config.hotkey_duty, toggle_duty,
     )
 
     print(f"Отслеживаю процессы: {', '.join(config.game_processes)}")

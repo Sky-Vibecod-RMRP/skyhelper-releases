@@ -93,10 +93,12 @@ def test_held_key_does_not_produce_a_series_of_shots(fake_keyboard):
     callback = fake_keyboard.added[0][1]
 
     callback(); callback(); callback()   # зажатая клавиша дребезжит
+    listener.join()                      # снимок уходит в отдельный поток
     assert shots == ["Наказания (День)"]
 
     now[0] = 0.5                          # прошло больше дебаунса
     callback()
+    listener.join()
     assert shots == ["Наказания (День)", "Наказания (День)"]
 
 
@@ -108,4 +110,5 @@ def test_callback_failure_is_swallowed(fake_keyboard, caplog):
     listener.reload(_categories(("A", "f6")))
 
     fake_keyboard.added[0][1]()          # не должно поднять исключение
+    listener.join()                      # ошибка логируется из потока снимка
     assert "не удался" in caplog.text

@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+import logging
+
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import (
     QColor, QDesktopServices, QFont, QGuiApplication, QIcon, QPainter, QPalette, QPen,
@@ -46,6 +48,8 @@ _REFERENCE_ITEMS = (
     "Команды", "Серверные события", "Транспорт", "Оружие",
     "Транспорт (Google)", "Online-STAFF", "Правила RMRP",
 )
+
+log = logging.getLogger(__name__)
 
 
 def _log_render(section: str, exc: Exception) -> None:
@@ -221,23 +225,12 @@ class HelperWindow(FramelessMixin, QDialog):
         self._duty.setCheckable(True)
         if core is not None:
             self._duty.clicked.connect(
-                lambda checked: core.session.set_duty(checked)
+                lambda checked: core.session.set_duty(checked, "кнопка в меню")
             )
             # Пульсирующее циановое свечение, пока дежурство включено.
             # Эффект вешаем ТОЛЬКО на время дежурства: когда он выключен,
             # но уже навешен, Qt рисует синюю рамку вокруг кнопки (баг-репорт).
-            self._duty_glow = QGraphicsDropShadowEffect(self._duty)
-            self._duty_glow.setColor(QColor("#4ec3f0"))
-            self._duty_glow.setBlurRadius(18)
-            self._duty_glow.setOffset(0, 0)
-            self._duty_pulse = QPropertyAnimation(
-                self._duty_glow, b"blurRadius", self
-            )
-            self._duty_pulse.setDuration(1400)
-            self._duty_pulse.setStartValue(8)
-            self._duty_pulse.setEndValue(28)
-            self._duty_pulse.setEasingCurve(QEasingCurve.Type.InOutSine)
-            self._duty_pulse.setLoopCount(-1)
+            self._create_duty_glow()
         else:
             self._duty.setVisible(False)
         side_layout.addWidget(self._duty)
@@ -733,6 +726,41 @@ class HelperWindow(FramelessMixin, QDialog):
             self._home.refresh()
         self._sync_duty()
 
+    def _create_duty_glow(self) -> None:
+        """(Пере)создать свечение и пульс кнопки дежурства.
+
+        ``setGraphicsEffect(None)`` при выключении дежурства забирает владение
+        эффектом у Qt и удаляет C++-объект — Python-ссылка остаётся, но
+        мёртвая. Повторное использование такой ссылки даёт RuntimeError
+        «Internal C++ object already deleted» (в логе сотрудника — 1555 раз,
+        волна на каждую секунду, пока дежурство включено).
+        """
+        pulse = getattr(self, "_duty_pulse", None)
+        if pulse is not None:
+            try:
+                pulse.stop()
+                pulse.setTargetObject(None)
+            except RuntimeError:
+                pass
+        self._duty_glow = QGraphicsDropShadowEffect(self._duty)
+        self._duty_glow.setColor(QColor("#4ec3f0"))
+        self._duty_glow.setBlurRadius(18)
+        self._duty_glow.setOffset(0, 0)
+        self._duty_pulse = QPropertyAnimation(self._duty_glow, b"blurRadius", self)
+        self._duty_pulse.setDuration(1400)
+        self._duty_pulse.setStartValue(8)
+        self._duty_pulse.setEndValue(28)
+        self._duty_pulse.setEasingCurve(QEasingCurve.Type.InOutSine)
+        self._duty_pulse.setLoopCount(-1)
+
+    def _duty_glow_alive(self) -> bool:
+        """Жива ли C++-ссылка на эффект (мёртвая бросает RuntimeError)."""
+        try:
+            self._duty_glow.blurRadius()
+        except RuntimeError:
+            return False
+        return True
+
     def _sync_duty(self) -> None:
         """Кнопка дежурства в меню: состояние и подсказка с клавишей."""
         if self._core is None or self._duty is None:
@@ -750,21 +778,60 @@ class HelperWindow(FramelessMixin, QDialog):
             else f"Начать дежурство\n{key} — начать"
         )
         pulse = getattr(self, "_duty_pulse", None)
-        if pulse is not None:
+        if pulse is None:
+            return
+        # Defensive: крах свечения не должен ронять обновление окна (та же
+        # волна RuntimeError раз в секунду съедала тост «Дежурство начато»).
+        try:
             if on:
+                if not self._duty_glow_alive():
+                    self._create_duty_glow()
+                    pulse = self._duty_pulse
                 if self._duty.graphicsEffect() is None:
                     self._duty.setGraphicsEffect(self._duty_glow)
                 if pulse.state() != QPropertyAnimation.State.Running:
                     pulse.start()
             else:
                 pulse.stop()
-                self._duty.setGraphicsEffect(None)
+                if self._duty.graphicsEffect() is not None:
+                    self._duty.setGraphicsEffect(None)
+        except RuntimeError:
+            log.exception("Свечение дежурства не обновилось")
 
     def refresh(self) -> None:
         """Обновить цифры и кнопку дежурства (окно живёт всё время работы)."""
         if self._home is not None:
             self._home.refresh()
         self._sync_duty()
+
+    @property
+    def stats_snapshot(self) -> tuple | None:
+        """Последний снимок статистики с «Главной» — без чтения базы."""
+        home = getattr(self, "_home", None)
+        return home.stats_snapshot if home is not None else None
+
+    def stop_updates(self) -> None:
+        """Остановить фоновые таймеры окна.
+
+        Вызывается из aboutToQuit ДО остановки ядра: иначе секундный таймер
+        успевает прочитать уже закрытую базу (sqlite3.ProgrammingError
+        «Cannot operate on a closed database» на выходе).
+        """
+        timer = getattr(self, "_timer", None)
+        if timer is not None:
+            timer.stop()
+        home = getattr(self, "_home", None)
+        if home is not None:
+            home.stop_stats()
+        query = getattr(self, "_query_timer", None)
+        if query is not None:
+            query.stop()
+        pulse = getattr(self, "_duty_pulse", None)
+        if pulse is not None:
+            try:
+                pulse.stop()
+            except RuntimeError:
+                pass
 
     def set_export_status(self, result) -> None:
         """Строка выгрузки — в разделе «Главная»."""
