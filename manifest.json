@@ -1,8 +1,8 @@
 {
-  "version": "1.0.10",
-  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.10/SKYHELPER_Setup.exe",
-  "sha256": "b9a40054eecc9e38437ceac937b8dc765044ba4f99dce5d16e17506e428e0eb6",
-  "released_at": 1790898406,
-  "notes": "Горячие клавиши: поле захвата нажатия вместо текстового строки, проверка бинда до сохранения, слушатель не падает на битом конфиге",
-  "sig": "50lntntPhH6lV5TBx8B8xmyoqeFfgwA5mLl2qFfb01WnOnHPEEsxJBMp-WKFxT6QEOMih6LAfXD75S3AgyBMBg"
+  "version": "1.0.11",
+  "url": "https://github.com/Sky-Vibecod-RMRP/skyhelper-releases/releases/download/v1.0.11/SKYHELPER_Setup.exe",
+  "sha256": "c3f5246e761f14fe37186c5cfd3a0fef111b307d7339bfa6f6870cdcb925cdd7",
+  "released_at": 1790942303,
+  "notes": "Фикс зависаний окна: статистика считается в фоне, окно всегда откликается, Insert безопасен",
+  "sig": "hTcb60WRlQ4jRAM3PPXteoRu40G7zUlumudg3KelARsujXMc5l4w_d8F3NTnhhoboOXMJ2Rok7rYq7LQSILrAA"
 }
