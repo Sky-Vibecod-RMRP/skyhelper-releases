@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 import pytest
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QLabel
 
 from app import update_check as uc
@@ -49,7 +50,7 @@ def _wait(qapp, condition, timeout: float = 10.0) -> bool:
         qapp.processEvents()
         if condition():
             return True
-        time.sleep(0.02)
+        QTest.qWait(20)
     return condition()
 
 
@@ -140,7 +141,7 @@ def test_download_failure_reports_and_reenables(qapp, state_dir, info,
     monkeypatch.setattr(uc, "download_update", fail)
     dialog = ud.UpdateDialog(info, forced=True)
     dialog.start_update()
-    assert _wait(qapp, lambda: "Не получилось обновиться" in _labels(dialog))
+    assert _wait(qapp, lambda: "Не получилось обновиться" in dialog._status.text())
     assert dialog.btn_update.isEnabled(), "после ошибки можно повторить"
     assert dialog.btn_quit.isEnabled()
     assert dialog.result() != QDialog.Accepted
