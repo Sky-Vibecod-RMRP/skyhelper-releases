@@ -20,3 +20,5 @@ license.key
 # Редакторы
 .vscode/
 .idea/
+.opencode/
+package/

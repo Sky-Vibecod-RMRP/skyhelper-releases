@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -65,7 +66,8 @@ def test_family_rank_name_handles_missing_and_broken_data():
     assert player_data.family_rank_name(broken, 1) == ""
 
 
-def test_player_panel_shows_rank_name_and_uses_table(tmp_path):
+def test_player_panel_shows_rank_name_and_uses_table(tmp_path, monkeypatch):
+    monkeypatch.setattr(player_data, "LOG_PATH", Path(_write_log(tmp_path)))
     html = player_data.panel_html()
     # подпись и значение не могут наехать друг на друга только в таблице
     assert "<table" in html and "<tr><td" in html

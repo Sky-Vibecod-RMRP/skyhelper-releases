@@ -118,7 +118,7 @@ class ShotsService:
     def week_folder(self) -> Path:
         """Текущая папка недели (создаётся при первом обращении)."""
         if self._week_folder is None:
-            self._week_folder = weeks.week_folder(self._config)
+            self._week_folder = weeks.week_folder(self._config, now=self._clock())
         return self._week_folder
 
     def open_week(self) -> Path | None:
@@ -234,9 +234,10 @@ class ShotsService:
         понедельник наступил, пока программу закрывали. Самый первый запуск
         на чистой папке молчит — это не переход.
         """
-        folder = weeks.week_folder(self._config)
+        now = self._clock()
+        folder = weeks.week_folder(self._config, now=now)
         existed = folder.is_dir()
-        made = weeks.ensure_week(self._config, self._config.shots_categories)
+        made = weeks.ensure_week(self._config, self._config.shots_categories, now=now)
         previous = self._week_folder
         self._week_folder = made
         if silent or existed:

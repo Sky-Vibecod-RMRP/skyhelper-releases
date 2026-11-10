@@ -216,10 +216,10 @@ def main() -> None:
     out_dir = ROOT / "release"
     out_dir.mkdir(exist_ok=True)
     out_path = out_dir / "manifest.json"
-    out_path.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    manifest_text = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+    out_path.write_text(manifest_text, encoding="utf-8")
+    # Также обновляем manifest.json в корне (для единого репозитория)
+    (ROOT / "manifest.json").write_text(manifest_text, encoding="utf-8")
 
     print()
     print(f"ГОТОВО: релиз {args.version} собран и подписан.")

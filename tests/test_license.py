@@ -114,10 +114,10 @@ def test_hwid_written_messy_still_matches(pair):
     # администратор мог записать код, скопированный из чата с пробелами
     private, pem = pair
     text, _payload = issue(private, hwid="rm-7f3a 9k2d-4m1p 8zr7")
-    result = lic.verify(text, hwid=PC, public_pem=pem)
+    result = lic.verify(text, hwid=PC, today=dt.date(2026, 10, 5), public_pem=pem)
     assert result.hwid == "RM-7F3A 9K2D-4M1P 8ZR7"   # как записали — так и храним
     # а сравнивается «голыми» символами, поэтому ПК всё равно подходит
-    lic.verify(text, hwid="rm7f3a9k2d4m1p8zr7", public_pem=pem)
+    lic.verify(text, hwid="rm7f3a9k2d4m1p8zr7", today=dt.date(2026, 10, 5), public_pem=pem)
 
 
 def test_expired(pair):
@@ -308,7 +308,7 @@ def test_cache_read_survives_tampering(pair, appdata):
 def test_state_roundtrip(pair, appdata):
     private, pem = pair
     text, _payload = issue(private)
-    result = lic.verify(text, hwid=PC, public_pem=pem)
+    result = lic.verify(text, hwid=PC, today=dt.date(2026, 10, 1), public_pem=pem)
     lic.save_state(result, now=dt.datetime(2026, 10, 1, tzinfo=dt.timezone.utc))
     state = lic.load_state()
     assert state["key_id"] == result.key_id
