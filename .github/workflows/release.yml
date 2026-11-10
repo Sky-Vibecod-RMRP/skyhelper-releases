@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 1.0.12)"
+        required: false
+        type: string
+      notes:
+        description: "Release notes"
+        required: false
+        default: "Регулярное обновление"
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup --no-progress
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-build.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          pytest -v
+
+      - name: Setup Signing Key (if secret provided)
+        shell: bash
+        env:
+          SIGNING_KEY: ${{ secrets.RMRP_SIGNING_KEY }}
+        run: |
+          if [ -n "$SIGNING_KEY" ]; then
+            echo "$SIGNING_KEY" > "$HOME/.rmrp_signing_key.pem"
+            echo "Signing key configured."
+          else
+            echo "No signing key provided in secrets; manifest will be unsigned or skipped."
+          fi
+
+      - name: Determine Version
+        id: get_version
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VER="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VER="${GITHUB_REF#refs/tags/v}"
+          else
+            VER=$(python -c 'import app; print(app.VERSION)')
+          fi
+          echo "VERSION=$VER" >> $GITHUB_OUTPUT
+
+      - name: Build EXE and Installer
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          pyinstaller --noconfirm SKYHELPER.spec
+          iscc installer\SKYHELPER.iss
+
+      - name: Generate Manifest and Update Info
+        shell: bash
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+          NOTES: ${{ github.event.inputs.notes || 'Обновление версии' }}
+        run: |
+          if [ -f "$HOME/.rmrp_signing_key.pem" ]; then
+            python tools/make_release.py "$VERSION" \
+              --repo "${{ github.repository }}" \
+              --notes "$NOTES" \
+              --skip-tests --skip-exe --skip-installer
+          else
+            # fallback manifest generation
+            python -c "
+          import hashlib, json, time, sys
+          from pathlib import Path
+          setup = Path('dist/SKYHELPER_Setup.exe')
+          h = hashlib.sha256(setup.read_bytes()).hexdigest()
+          mf = {
+              'version': '$VERSION',
+              'url': 'https://github.com/${{ github.repository }}/releases/download/v$VERSION/SKYHELPER_Setup.exe',
+              'sha256': h,
+              'released_at': int(time.time()),
+              'notes': '$NOTES'
+          }
+          mf_text = json.dumps(mf, indent=2, ensure_ascii=False) + '\n'
+          Path('release/manifest.json').write_text(mf_text, encoding='utf-8')
+          Path('manifest.json').write_text(mf_text, encoding='utf-8')
+          "
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || format('v{0}', steps.get_version.outputs.VERSION) }}
+          name: ${{ format('Релиз {0}', steps.get_version.outputs.VERSION) }}
+          body: ${{ github.event.inputs.notes || format('SKY HELPER v{0}', steps.get_version.outputs.VERSION) }}
+          files: |
+            dist/SKYHELPER.exe
+            dist/SKYHELPER_Setup.exe
+            release/manifest.json
+            manifest.json
