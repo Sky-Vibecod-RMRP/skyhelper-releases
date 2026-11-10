@@ -269,7 +269,10 @@ def _make_handler(dash: WebDashboard) -> type[BaseHTTPRequestHandler]:
             for name, value in extra:
                 self.send_header(name, value)
             self.end_headers()
-            self.wfile.write(body)
+            if body:
+                chunk_size = 64 * 1024
+                for offset in range(0, len(body), chunk_size):
+                    self.wfile.write(body[offset:offset + chunk_size])
 
         def _send_html(self, code: int, page: str) -> None:
             self._send(code, page.encode("utf-8"), "text/html; charset=utf-8")
